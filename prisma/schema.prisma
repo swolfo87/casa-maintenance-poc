@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  
+  quotes Quote[]
+  
+  @@map("users")
+}
+
+model ServiceCategory {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  
+  services Service[]
+  
+  @@map("service_categories")
+}
+
+model Service {
+  id                  String          @id @default(cuid())
+  categoryId          String
+  name                String
+  description         String?
+  basePrice           Decimal         @db.Decimal(10,2)
+  unit                String          // "ore", "mq", "unità"
+  estimatedDuration   Int             // in ore
+  isActive            Boolean         @default(true)
+  createdAt           DateTime        @default(now())
+  
+  category            ServiceCategory @relation(fields: [categoryId], references: [id])
+  quoteItems          QuoteItem[]
+  
+  @@map("services")
+}
+
+model Quote {
+  id                  String      @id @default(cuid())
+  userId              String
+  status              QuoteStatus @default(DRAFT)
+  totalAmount         Decimal     @db.Decimal(10,2)
+  workStartDate       DateTime?
+  estimatedEndDate    DateTime?
+  actualEndDate       DateTime?
+  address             String
+  description         String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  
+  user                User        @relation(fields: [userId], references: [id])
+  items               QuoteItem[]
+  addons              QuoteAddon[]
+  payments            Payment[]
+  
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String  @id @default(cuid())
+  quoteId     String
+  serviceId   String
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10,2)
+  totalPrice  Decimal @db.Decimal(10,2)
+  
+  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  service     Service @relation(fields: [serviceId], references: [id])
+  
+  @@map("quote_items")
+}
+
+model AddonService {
+  id                        String        @id @default(cuid())
+  name                      String
+  price                     Decimal       @db.Decimal(10,2)
+  applicableToCategoryIds   String[]      // Array di category IDs
+  isActive                  Boolean       @default(true)
+  
+  quoteAddons               QuoteAddon[]
+  
+  @@map("addon_services")
+}
+
+model QuoteAddon {
+  id        String       @id @default(cuid())
+  quoteId   String
+  addonId   String
+  price     Decimal      @db.Decimal(10,2)
+  
+  quote     Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  addon     AddonService @relation(fields: [addonId], references: [id])
+  
+  @@map("quote_addons")
+}
+
+model Payment {
+  id                      String        @id @default(cuid())
+  quoteId                 String
+  stripePaymentIntentId   String?       @unique
+  amount                  Decimal       @db.Decimal(10,2)
+  status                  PaymentStatus @default(PENDING)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  
+  quote                   Quote         @relation(fields: [quoteId], references: [id])
+  
+  @@map("payments")
+}
+
+enum QuoteStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
